@@ -7,11 +7,11 @@ use super::super::entities::notes::Entity as NotesEntity;
 pub struct Notes {
     #[sea_orm(primary_key, auto_increment = false, column_type = "custom(\"UUID\")")]
     pub id: String,
-    title: Option<String>,
+    pub title: Option<String>,
     #[sea_orm(column_type = "Text")]
-    content: String,
-    #[sea_orm(column_type = "custom(\"UUID\")")]
-    user_id: String,
-    #[sea_orm(column_type = "custom(\"UUID\")")]
-    book_id: Option<String>,
+    pub content: String,
+    pub user_id: String,
+    pub book_id: Option<String>,
+    pub created: i32,
+    pub last_modified: i32,
 }

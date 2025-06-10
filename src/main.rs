@@ -4,7 +4,7 @@ use actix_web_httpauth::middleware::HttpAuthentication;
 
 use crate::{
     routes::{ books::books_config, notes::notes_config, users::users_config },
-    util::token_manager::jwt_validator,
+    util::{ config::ServerConfig, token_manager::jwt_validator },
 };
 
 mod data;
@@ -14,6 +14,11 @@ mod util;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
+    dotenv::dotenv().ok();
+    let config = envy
+        ::prefixed("SERVER_")
+        .from_env::<ServerConfig>()
+        .expect("server config missing");
     actix_web::HttpServer
         ::new(|| {
             let jwt_authentication = HttpAuthentication::with_fn(jwt_validator);
@@ -27,6 +32,6 @@ async fn main() -> std::io::Result<()> {
                 .configure(books_config)
                 .configure(users_config)
         })
-        .bind(("127.0.0.1", 3001))?
+        .bind((config.host, config.port))?
         .run().await
 }

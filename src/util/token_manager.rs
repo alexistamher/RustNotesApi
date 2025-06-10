@@ -1,16 +1,20 @@
+use std::env;
+
 use actix_web::{ dev::ServiceRequest, error, HttpRequest, HttpResponse };
 use actix_web_httpauth::extractors::bearer::BearerAuth;
 use jsonwebtoken::{ decode, encode, Algorithm, DecodingKey, EncodingKey, Header, Validation };
 use serde::{ Serialize, Deserialize };
 
-const SECRET_KEY: &str = "notes_api_sample";
+use crate::util::{ cache_manager::{ self, is_in_blacklist }, config::TokenManagerConfig };
 
 pub fn generate_token(user_id: &str) -> Token {
-    let lifetime = 10i64;
+    let config = get_config();
     let header = Header::new(Algorithm::HS512);
-    let key = EncodingKey::from_secret(SECRET_KEY.as_ref());
+    let key = EncodingKey::from_secret(config.secret.as_ref());
     let iat = chrono::Utc::now().timestamp();
-    let exp = (chrono::Utc::now() + chrono::Duration::seconds(lifetime)).timestamp() as usize;
+    let exp = (
+        chrono::Utc::now() + chrono::Duration::seconds(config.lifetime)
+    ).timestamp() as usize;
     let jti = uuid::Uuid::new_v4().to_string();
     let claims = Claims {
         iat,
@@ -19,25 +23,27 @@ pub fn generate_token(user_id: &str) -> Token {
         user_id: user_id.to_owned(),
     };
     let token = encode(&header, &claims, &key).expect("error on token generation");
-    Token { token, lifetime }
+    Token { token, lifetime: config.lifetime }
 }
 
 pub fn check_token(token: &str) -> Option<Claims> {
+    let config = get_config();
     let validation = Validation::new(Algorithm::HS512);
-    let decoding_key = DecodingKey::from_secret(SECRET_KEY.as_ref());
+    let decoding_key = DecodingKey::from_secret(config.secret.as_ref());
     let claims = decode::<Claims>(token, &decoding_key, &validation)
         .ok()
         .map(|t| t.claims)?;
     if (chrono::Utc::now().timestamp() as usize) >= claims.exp {
         return None;
     }
+    if is_in_blacklist(&claims.jti) {
+        return None;
+    }
     Some(claims)
-
-    // todo(agregar validación de lista negra)
 }
 
-pub fn revoke_creds(jti: &str) {
-    // todo(agregar revocación de tokens con lista negra)
+pub fn revoke_creds(jti: &str, expiration: i64) {
+    cache_manager::revoke_token(jti, expiration);
 }
 
 pub async fn jwt_validator(
@@ -45,9 +51,9 @@ pub async fn jwt_validator(
     creds: Option<BearerAuth>
 ) -> Result<ServiceRequest, (actix_web::Error, ServiceRequest)> {
     let path = req.path();
-    let paths = ["/user/login", "/user/register"];
+    let env_paths = env::var("TOKEN_SKIP_PATHS").expect("token_skip_paths config missing");
+    let paths = env_paths.split(',').collect::<Vec<&str>>();
     if paths.iter().any(|&p| path.eq(p)) {
-        println!("started...");
         return Ok(req);
     }
     let Some(creds) = creds else {
@@ -56,10 +62,15 @@ pub async fn jwt_validator(
     let Some(claims) = check_token(creds.token()) else {
         return Err((error::ErrorUnauthorized("unauthorized"), req));
     };
-    // todo!(crear validador para lista de tokens revocados)
-    //exist_in_blacklist(claims.jti);
+    if is_in_blacklist(&claims.jti) {
+        return Err((error::ErrorUnauthorized("unauthorized"), req));
+    }
 
     Ok(req)
+}
+
+fn get_config() -> TokenManagerConfig {
+    envy::prefixed("TOKEN_").from_env::<TokenManagerConfig>().expect("token config missing")
 }
 
 pub trait TokenExtractor<T> {

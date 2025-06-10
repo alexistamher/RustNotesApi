@@ -10,7 +10,6 @@ pub struct Model {
     pub name: String,
     pub created: i32,
     pub last_modified: i32,
-    #[sea_orm(column_type = "custom(\"UUID\")")]
     pub user_id: String,
 }
 

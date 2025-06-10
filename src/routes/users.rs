@@ -1,13 +1,18 @@
+
 use actix_web::{ get, post, web::{ self, Json }, HttpRequest, HttpResponse };
 use crate::{
     data::repository::users::{ self as users_service, get_by_id },
     domain::models::request::users::{ UserLogin, UserRegister },
     routes::util::ResultToHttp,
-    util::token_manager::{ check_token, generate_token, revoke_creds, TokenExtractor },
+    util::{cache_manager::revoke_token, token_manager::{ check_token, generate_token, revoke_creds, TokenExtractor }},
 };
 
 pub fn users_config(cfg: &mut web::ServiceConfig) {
-    cfg.service(info).service(login).service(logout).service(register).service(refresh);
+    cfg.service(info)
+        .service(login)
+        .service(logout)
+        .service(register)
+        .service(refresh);
 }
 
 #[get("user/info")]
@@ -47,11 +52,12 @@ async fn refresh(req: HttpRequest) -> HttpResponse {
     let Some(claims) = check_token(&token) else {
         return HttpResponse::Unauthorized().finish();
     };
+    revoke_token(&claims.jti, claims.exp as i64);
     let token = generate_token(&claims.user_id);
     HttpResponse::Ok().json(token)
 }
 
-#[post("user/logout")]
+#[get("user/logout")]
 async fn logout(req: HttpRequest) -> HttpResponse {
     let token = match req.token() {
         Ok(token) => token,
@@ -62,7 +68,11 @@ async fn logout(req: HttpRequest) -> HttpResponse {
     let Some(claims) = check_token(&token) else {
         return HttpResponse::Unauthorized().finish();
     };
-    revoke_creds(&claims.jti);
+    let lifetime = (chrono::Utc::now() - chrono::Duration::seconds(claims.exp as i64)).timestamp();
+    if lifetime > 0 {
+        return HttpResponse::Ok().finish();
+    }
+    revoke_creds(&claims.jti, claims.exp as i64);
     HttpResponse::Ok().finish()
 }
 

@@ -6,18 +6,25 @@ use crate::{
 };
 
 pub fn notes_config(cfg: &mut web::ServiceConfig) {
-    cfg.service(all).service(get_by_book_id).service(add).service(remove);
+    cfg.service(all).service(get_by_book_id).service(add).service(remove).service(get_by_note_id);
 }
 
-#[get("notes/all")]
-async fn all() -> HttpResponse {
-    notes_service::get_all().await.to_http()
+#[get("notes/all/{user_id}")]
+async fn all(path: Path<(String,)>) -> HttpResponse {
+    let (user_id,) = path.into_inner();
+    notes_service::get_all(&user_id).await.to_http()
 }
 
-#[get("notes/{book_id}")]
+#[get("notes/book/{book_id}")]
 async fn get_by_book_id(path: Path<(String,)>) -> HttpResponse {
     let (book_id,) = path.into_inner();
     notes_service::get_by_book_id(&book_id).await.to_http()
+}
+
+#[get("notes/{note_id}")]
+async fn get_by_note_id(path: Path<(String,)>) -> HttpResponse {
+    let (note_id,) = path.into_inner();
+    notes_service::get_by_note_id(&note_id).await.to_http()
 }
 
 #[post("notes/add")]
