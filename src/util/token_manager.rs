@@ -57,7 +57,7 @@ pub async fn jwt_validator(
         return Ok(req);
     }
     let Some(creds) = creds else {
-        return Err((error::ErrorForbidden("bearer missing"), req));
+        return Err((error::ErrorUnauthorized("unauthorized"), req));
     };
     let Some(claims) = check_token(creds.token()) else {
         return Err((error::ErrorUnauthorized("unauthorized"), req));
@@ -77,6 +77,14 @@ pub trait TokenExtractor<T> {
     fn token(self) -> Result<String, HttpResponse>;
 }
 
+pub trait UserIdExtractor<T> {
+    fn user_id(self) -> Result<String, HttpResponse>;
+}
+
+pub trait ClaimsExtractor<T> {
+    fn claims(self) -> Result<Claims, HttpResponse>;
+}
+
 impl TokenExtractor<HttpRequest> for HttpRequest {
     fn token(self) -> Result<String, HttpResponse> {
         let token_header = self
@@ -89,6 +97,36 @@ impl TokenExtractor<HttpRequest> for HttpRequest {
             .last()
             .map(|&t| t.to_owned())
             .ok_or(HttpResponse::Unauthorized().finish())
+    }
+}
+
+impl UserIdExtractor<HttpRequest> for HttpRequest {
+    fn user_id(self) -> Result<String, HttpResponse> {
+        let token = match self.token() {
+            Ok(token) => token,
+            Err(response) => {
+                return Err(response);
+            }
+        };
+        let Some(claims) = check_token(&token) else {
+            return Err(HttpResponse::Unauthorized().finish());
+        };
+        Ok(claims.user_id)
+    }
+}
+
+impl ClaimsExtractor<HttpRequest> for HttpRequest {
+    fn claims(self) -> Result<Claims, HttpResponse> {
+        let token = match self.token() {
+            Ok(token) => token,
+            Err(response) => {
+                return Err(response);
+            }
+        };
+        let Some(claims) = check_token(&token) else {
+            return Err(HttpResponse::Unauthorized().finish());
+        };
+        Ok(claims)
     }
 }
 

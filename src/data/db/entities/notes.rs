@@ -12,8 +12,8 @@ pub struct Model {
     pub content: String,
     pub user_id: String,
     pub book_id: Option<String>,
-    pub created: i32,
-    pub last_modified: i32,
+    pub created: i64,
+    pub last_modified: i64,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
