@@ -3,8 +3,17 @@ use actix_web::middleware::Logger;
 use actix_web_httpauth::middleware::HttpAuthentication;
 
 use crate::{
-    routes::{ books::books_config, notes::notes_config, users::users_config },
-    util::{ config::ServerConfig, token_manager::jwt_validator },
+    routes::{
+        books::books_config,
+        crypto_middleware::CryptoMiddlewareFactory,
+        notes::notes_config,
+        session::session_config,
+        users::users_config,
+    },
+    util::{
+        config::ServerConfig,
+        token_manager::jwt_validator,
+    },
 };
 
 mod data;
@@ -26,11 +35,13 @@ async fn main() -> std::io::Result<()> {
             actix_web::App
                 ::new()
                 .wrap(Logger::default())
+                .wrap(CryptoMiddlewareFactory)
                 .wrap(jwt_authentication)
                 .wrap(Cors::default().allow_any_header().allow_any_method().allow_any_origin())
                 .configure(notes_config)
                 .configure(books_config)
                 .configure(users_config)
+                .configure(session_config)
         })
         .bind((config.host, config.port))?
         .run().await
