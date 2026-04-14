@@ -1,20 +1,18 @@
 use sea_orm::{
     ActiveModelTrait,
-    ActiveValue::{ NotSet, Set },
-    ColumnTrait,
-    EntityTrait,
-    ModelTrait,
-    QueryFilter,
+    ActiveValue::{NotSet, Set},
+    ColumnTrait, EntityTrait, ModelTrait, QueryFilter,
 };
 use uuid::Uuid;
 
 use crate::{
     data::db::{
-        entities::notes::{ self, ActiveModel as NotesAm, Entity as Notes, Model },
+        entities::notes::{self, ActiveModel as NotesAm, Entity as Notes, Model},
         models::notes::Notes as PartialNotes,
         util::get_conn,
     },
-    domain::models::request::notes::NoteAdd, util::result_util::MapErrorToString,
+    domain::models::request::notes::NoteAdd,
+    util::result_util::MapErrorToString,
 };
 
 pub async fn get_by_book_id(book_id: &str) -> Result<Vec<PartialNotes>, String> {
@@ -22,7 +20,8 @@ pub async fn get_by_book_id(book_id: &str) -> Result<Vec<PartialNotes>, String> 
     Notes::find()
         .filter(notes::Column::BookId.eq(book_id))
         .into_partial_model::<PartialNotes>()
-        .all(&conn).await
+        .all(&conn)
+        .await
         .map_err(|e| e.to_string())
 }
 
@@ -31,7 +30,8 @@ pub async fn get_by_note_id(note_id: &str) -> Result<PartialNotes, String> {
     Notes::find()
         .filter(notes::Column::Id.eq(note_id))
         .into_partial_model::<PartialNotes>()
-        .one(&conn).await
+        .one(&conn)
+        .await
         .map_err_as_str()
         .map(|n| n.ok_or("note not found".to_string()))?
 }
@@ -41,7 +41,8 @@ pub async fn get_all(user_id: &str) -> Result<Vec<PartialNotes>, String> {
     Notes::find()
         .filter(notes::Column::UserId.eq(user_id))
         .into_partial_model::<PartialNotes>()
-        .all(&conn).await
+        .all(&conn)
+        .await
         .map_err(|e| e.to_string())
 }
 
@@ -51,13 +52,15 @@ pub async fn add(note: NoteAdd) -> Result<PartialNotes, String> {
         return insert_note(&note).await;
     }
     let current = Notes::find_by_id(note.id.clone().unwrap())
-        .one(&conn).await
+        .one(&conn)
+        .await
         .map_err_as_str()
         .map(|n| n.ok_or("note not found".to_string()))?;
     if current.is_ok() {
         let current: NotesAm = current.unwrap().into_active(&note);
         return current
-            .update(&conn).await
+            .update(&conn)
+            .await
             .map_err(|e| e.to_string())
             .map(|n| n.into());
     }
@@ -69,24 +72,26 @@ async fn insert_note(note: &NoteAdd) -> Result<PartialNotes, String> {
     let active: NotesAm = note.into();
 
     active
-        .insert(&conn).await
+        .insert(&conn)
+        .await
         .map_err(|e| e.to_string())
         .map(|n| n.into())
 }
 
 pub async fn remove(note_id: String) -> Result<(), String> {
+    dbg!(&note_id);
     let conn = get_conn().await;
-    let result = Notes::find().filter(notes::Column::Id.eq(note_id)).one(&conn).await;
+    let result = Notes::find()
+        .filter(notes::Column::Id.eq(note_id))
+        .one(&conn)
+        .await;
     let Ok(model) = result else {
         return Err(result.err().unwrap().to_string());
     };
     let Some(note_found) = model else {
         return Err("note does not exist".to_string());
     };
-    note_found
-        .delete(&conn).await
-        .map_err_as_str()
-        .map(|_| ())
+    note_found.delete(&conn).await.map_err_as_str().map(|_| ())
 }
 
 impl From<Model> for PartialNotes {

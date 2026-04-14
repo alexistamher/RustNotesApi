@@ -1,7 +1,10 @@
 use actix_web::HttpResponse;
 use serde::Serialize;
 
-pub trait ResultToHttp<T> where T: Serialize {
+pub trait ResultToHttp<T>
+where
+    T: Serialize,
+{
     fn to_http(self) -> HttpResponse;
 }
 
